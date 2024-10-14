@@ -1,3 +1,6 @@
+// Example code provide by Barak Schmookler
+// for calculating DCA to a specific point
+
 #include "DD4hep/Detector.h"
 #include "DD4hep/DetElement.h"
 
