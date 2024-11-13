@@ -60,10 +60,20 @@ const double eMass = 0.000511;
 
 const double bField = -1.7; // Tesla
 
-TVector3 getDcaToVtx(TVector3 mom, TVector3 pos, float charge, TVector3 vtx);
+TVector3 getDcaToVtx(const int index, TVector3 vtx);
 
-TLorentzVector getPairParent(TVector3 mom1, TVector3 pos1, float charge1, TVector3 mom2, TVector3 pos2, float charge2, TVector3 vtx,
+TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
 			     float &dcaDaughters, float &cosTheta, float &decayLength, float &V0DcaToVtx);
+
+TTreeReaderArray<float> *rcMomPx2;
+TTreeReaderArray<float> *rcMomPy2;
+TTreeReaderArray<float> *rcMomPz2;
+TTreeReaderArray<float> *rcCharge2;
+
+TTreeReaderArray<float> *rcTrkLoca2;
+TTreeReaderArray<float> *rcTrkLocb2;
+TTreeReaderArray<float> *rcTrkTheta2;
+TTreeReaderArray<float> *rcTrkPhi2;
 
 int main(int argc, char **argv)
 {
@@ -181,7 +191,7 @@ int main(int argc, char **argv)
     }
 
   TTreeReader treereader(chain);
-  // MC
+  // MC  
   TTreeReaderArray<int> mcPartGenStatus = {treereader, "MCParticles.generatorStatus"};
   TTreeReaderArray<int> mcPartPdg = {treereader, "MCParticles.PDG"};
   TTreeReaderArray<float> mcPartCharge = {treereader, "MCParticles.charge"};
@@ -218,6 +228,16 @@ int main(int argc, char **argv)
   TTreeReaderArray<float> rcTrkqOverP = {treereader, "CentralCKFTrackParameters.qOverP"};
   TTreeReaderArray<float> rcTrkTheta = {treereader, "CentralCKFTrackParameters.theta"};
   TTreeReaderArray<float> rcTrkPhi = {treereader, "CentralCKFTrackParameters.phi"};
+
+  rcMomPx2 = new TTreeReaderArray<float>{treereader, "ReconstructedChargedParticles.momentum.x"};
+  rcMomPy2 = new TTreeReaderArray<float>{treereader, "ReconstructedChargedParticles.momentum.y"};
+  rcMomPz2 = new TTreeReaderArray<float>{treereader, "ReconstructedChargedParticles.momentum.z"};
+  rcCharge2 = new TTreeReaderArray<float>{treereader, "ReconstructedChargedParticles.charge"};
+
+  rcTrkLoca2 = new TTreeReaderArray<float>{treereader, "CentralCKFTrackParameters.loc.a"};
+  rcTrkLocb2 = new TTreeReaderArray<float>{treereader, "CentralCKFTrackParameters.loc.b"};
+  rcTrkTheta2 = new TTreeReaderArray<float>{treereader, "CentralCKFTrackParameters.theta"};
+  rcTrkPhi2 = new TTreeReaderArray<float>{treereader, "CentralCKFTrackParameters.phi"};
 
   TTreeReaderArray<float> CTVx = {treereader, "CentralTrackVertices.position.x"};
   TTreeReaderArray<float> CTVy = {treereader, "CentralTrackVertices.position.y"};
@@ -284,14 +304,14 @@ int main(int argc, char **argv)
 
 		  if(rc_index>=0)
 		    {
-		      TVector3 pos(rcPosx[rc_index], rcPosy[rc_index], rcPosz[rc_index]);
-		      TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
-		      TVector3 dcaToVtx = getDcaToVtx(mom, pos, rcCharge[rc_index], vertex_rc);
+		      TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
 		      
 		      int ip = 0;
 		      if(fabs(mcPartPdg[imc]) == 321) ip = 1;
+		      TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
 		      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
 		      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
+		      //printf("Prim %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_index, pos.x(), pos.y(), pos.z(), mcPartVx[imc], mcPartVy[imc], mcPartVz[imc]);
 		    }
 		}
             }
@@ -349,12 +369,13 @@ int main(int argc, char **argv)
 		  if(assoc_map.find(mc_part_index) != assoc_map.end()) rc_part_index = assoc_map[mc_part_index];
 		  if(rc_part_index>=0)
 		    {
-		      TVector3 pos(rcPosx[rc_part_index], rcPosy[rc_part_index], rcPosz[rc_part_index]);
-		      TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
-		      TVector3 dcaToVtx = getDcaToVtx(mom, pos, rcCharge[rc_part_index], vertex_rc);
+		      TVector3 dcaToVtx = getDcaToVtx(rc_part_index, vertex_rc);
 
+		      TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
 		      hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
 		      hRcSecPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
+
+		      //printf("Sec %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_part_index, pos.x(), pos.y(), pos.z(), mcPartVx[mc_part_index], mcPartVy[mc_part_index], mcPartVz[mc_part_index]);
 		    }
 		}
 	    }
@@ -365,11 +386,11 @@ int main(int argc, char **argv)
       hMcVtxZ->Fill(vertex_mc.z());
 
       // Get pair information
-      vector<int> pi_index;
-      vector<int> k_index;
+      vector<unsigned int> pi_index;
+      vector<unsigned int> k_index;
       pi_index.clear();
       k_index.clear();
-      for(int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
+      for(unsigned int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
 	{	  
 	  int iSimPartID = -1;
 	  for(int j=0; j<nAssoc; j++)
@@ -386,14 +407,10 @@ int main(int argc, char **argv)
 	}
 
       // pair pion and kaon
-      for(int i=0; i<pi_index.size(); i++)
+      for(unsigned int i=0; i<pi_index.size(); i++)
 	{
-	  TLorentzVector pi_mom_vec;
-	  pi_mom_vec.SetXYZM(rcMomPx[pi_index[i]], rcMomPy[pi_index[i]], rcMomPz[pi_index[i]], gPionMass);
-	  for(int j=0; j<k_index.size(); j++)
+	  for(unsigned int j=0; j<k_index.size(); j++)
 	    {
-	      TLorentzVector k_mom_vec;
-	      k_mom_vec.SetXYZM(rcMomPx[k_index[j]], rcMomPy[k_index[j]], rcMomPz[k_index[j]], gKaonMass);
 	      if(rcCharge[pi_index[i]]*rcCharge[k_index[j]]<0)
 		{
 
@@ -423,72 +440,8 @@ int main(int argc, char **argv)
 			}
 		    }
 
-		  /*
-		  // -- get helix
-		  TVector3 pos1(rcPosx[pi_index[i]], rcPosy[pi_index[i]], rcPosz[pi_index[i]]);
-		  TVector3 mom1(rcMomPx[pi_index[i]], rcMomPy[pi_index[i]], rcMomPz[pi_index[i]]);
-		  StPhysicalHelix p1Helix(mom1, pos1, bField * tesla, rcCharge[pi_index[i]]);
-
-		  TVector3 pos2(rcPosx[k_index[j]], rcPosy[k_index[j]], rcPosz[k_index[j]]);
-		  TVector3 mom2(rcMomPx[k_index[j]], rcMomPy[k_index[j]], rcMomPz[k_index[j]]);
-		  StPhysicalHelix p2Helix(mom2, pos2, bField * tesla,  rcCharge[k_index[j]]);
-		  
-		  // -- use straight lines approximation to get point of DCA of particle1-particle2 pair
-		  StPhysicalHelix const p1StraightLine(mom1, pos1, 0, rcCharge[pi_index[i]]);
-		  StPhysicalHelix const p2StraightLine(mom2, pos2, 0, rcCharge[k_index[j]]);
-
-		  //printf("p2Mom = (%2.4f, %2.4f, %2.4f)\n",mom2.x(), mom2.y(), mom2.z());
-	
-		  pair<double, double> const ss = p1StraightLine.pathLengths(p2StraightLine);
-		  TVector3 const p1AtDcaToP2 = p1StraightLine.at(ss.first);
-		  TVector3 const p2AtDcaToP1 = p2StraightLine.at(ss.second);
-		  //cout << ss.first << "  " << ss.second << endl;
-	
-		  // -- calculate DCA of particle1 to particle2 at their DCA
-		  float dcaDaughters = (p1AtDcaToP2 - p2AtDcaToP1).Mag();
-	
-		  // -- calculate Lorentz vector of particle1-particle2 pair
-		  TVector3 const p1MomAtDca = p1Helix.momentumAt(ss.first,  bField * tesla);
-		  TVector3 const p2MomAtDca = p2Helix.momentumAt(ss.second, bField * tesla);
-	
-		  TLorentzVector p1FourMom(p1MomAtDca, sqrt(p1MomAtDca.Mag2()+gPionMass*gPionMass));
-		  TLorentzVector p2FourMom(p2MomAtDca, sqrt(p2MomAtDca.Mag2()+gKaonMass*gKaonMass));
-	
-		  TLorentzVector parent = p1FourMom + p2FourMom;
-
-
-	
-		  // -- calculate cosThetaStar
-		  TLorentzVector pairFourMomReverse(-parent.Px(), -parent.Py(), -parent.Pz(), parent.E());
-		  TLorentzVector p1FourMomStar = p1FourMom;
-		  p1FourMomStar.Boost(pairFourMomReverse.Vect());
-		  float cosThetaStar = std::cos(p1FourMomStar.Vect().Angle(parent.Vect()));
-	
-		  // -- calculate decay vertex (secondary or tertiary)
-		  TVector3 decayVertex = (p1AtDcaToP2 + p2AtDcaToP1) * 0.5 ;
-	
-		  // -- calculate pointing angle and decay length with respect to primary vertex
-		  //    if decay vertex is a tertiary vertex
-		  //    -> only rough estimate -> needs to be updated after secondary vertex is found
-		  TVector3 vtxToV0 = decayVertex - vertex_rc;
-		  float pointingAngle = vtxToV0.Angle(parent.Vect());
-		  float cosTheta = std::cos(pointingAngle);
-		  float decayLength = vtxToV0.Mag();
-
-		  // -- calculate V0 DCA to primary vertex
-		  TVector3 dcaToVtx = getDcaToVtx(parent.Vect(), decayVertex, 0, vertex_rc);
-		  float V0Dca = dcaToVtx.Mag();
-		  */
-
-		  TVector3 pos1(rcPosx[pi_index[i]], rcPosy[pi_index[i]], rcPosz[pi_index[i]]);
-		  TVector3 mom1(rcMomPx[pi_index[i]], rcMomPy[pi_index[i]], rcMomPz[pi_index[i]]);
-
-		  TVector3 pos2(rcPosx[k_index[j]], rcPosy[k_index[j]], rcPosz[k_index[j]]);
-		  TVector3 mom2(rcMomPx[k_index[j]], rcMomPy[k_index[j]], rcMomPz[k_index[j]]);
-
 		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx; 
-		  TLorentzVector parent = getPairParent(mom1, pos1, rcCharge[pi_index[i]], mom2, pos2, rcCharge[k_index[j]], vertex_rc,
-							dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
+		  TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc, dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
 
 		  if(hasD0)
 		    {
@@ -517,14 +470,12 @@ int main(int argc, char **argv)
 	    }
 	}
 
-
-
       // loop over reconstructed particles
       vector<int> pi_dca_index;
       vector<int> k_dca_index;
       pi_dca_index.clear();
       k_dca_index.clear();
-      for(int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
+      for(unsigned int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
 	{
 	  int iSimPartID = -1;
 	  for(int j=0; j<nAssoc; j++)
@@ -538,10 +489,7 @@ int main(int argc, char **argv)
 	  if(iSimPartID<0) continue;
 	  if(fabs(mcPartPdg[iSimPartID]) != 211 && fabs(mcPartPdg[iSimPartID]) != 321) continue;
 
-	  TVector3 pos(rcPosx[rc_index], rcPosy[rc_index], rcPosz[rc_index]);
-	  TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
-	  TVector3 dcaToVtx = getDcaToVtx(mom, pos, rcCharge[rc_index], vertex_rc);
-
+	  TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
 	  if(dcaToVtx.Pt() > 0.02)
 	    {
 	      if(fabs(mcPartPdg[iSimPartID]) == 211) pi_dca_index.push_back(rc_index);
@@ -549,18 +497,13 @@ int main(int argc, char **argv)
 	    }
 	}
       // pair pion and kaon
-      for(int i=0; i<pi_dca_index.size(); i++)
+      for(unsigned int i=0; i<pi_dca_index.size(); i++)
 	{
-	  for(int j=0; j<k_dca_index.size(); j++)
+	  for(unsigned int j=0; j<k_dca_index.size(); j++)
 	    {
-	      TVector3 pos1(rcPosx[pi_dca_index[i]], rcPosy[pi_dca_index[i]], rcPosz[pi_dca_index[i]]);
-	      TVector3 mom1(rcMomPx[pi_dca_index[i]], rcMomPy[pi_dca_index[i]], rcMomPz[pi_dca_index[i]]);
-
-	      TVector3 pos2(rcPosx[k_dca_index[j]], rcPosy[k_dca_index[j]], rcPosz[k_dca_index[j]]);
-	      TVector3 mom2(rcMomPx[k_dca_index[j]], rcMomPy[k_dca_index[j]], rcMomPz[k_dca_index[j]]);
 
 	      float dcaDaughters, cosTheta, decayLength, V0DcaToVtx; 
-	      TLorentzVector parent = getPairParent(mom1, pos1, rcCharge[pi_dca_index[i]], mom2, pos2, rcCharge[k_dca_index[j]], vertex_rc,
+	      TLorentzVector parent = getPairParent(pi_dca_index[i], k_dca_index[j], vertex_rc,
 						    dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
 
 	      if(dcaDaughters < 0.002 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
@@ -628,19 +571,34 @@ int main(int argc, char **argv)
 
 }
 
-
-TVector3 getDcaToVtx(TVector3 mom, TVector3 pos, float charge, TVector3 vtx)
+//======================================
+TVector3 getDcaToVtx(const int index, TVector3 vtx)
 {
-  StPhysicalHelix pHelix(mom, pos, bField * tesla, charge);
+  //printf("check %d: (%2.4f, %2.4f, %2.4f) =? (%2.4f, %2.4f, %2.4f)\n", index, mom.x(), mom.y(), mom.z(), rcMomPx2->At(index), rcMomPy2->At(index), rcMomPz2->At(index));
+
+  TVector3 pos(rcTrkLoca2->At(index) * sin(rcTrkPhi2->At(index)) * -1, rcTrkLoca2->At(index) * cos(rcTrkPhi2->At(index)), rcTrkLocb2->At(index));
+  TVector3 mom(rcMomPx2->At(index), rcMomPy2->At(index), rcMomPz2->At(index));
+   
+  StPhysicalHelix pHelix(mom, pos, bField * tesla, rcCharge2->At(index));
   pHelix.moveOrigin(pHelix.pathLength(vtx));
   TVector3 dcaToVtx = pHelix.origin() - vtx;
   return dcaToVtx;
 }
 
-TLorentzVector getPairParent(TVector3 mom1, TVector3 pos1, float charge1, TVector3 mom2, TVector3 pos2, float charge2, TVector3 vtx,
+//======================================
+TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
 			     float &dcaDaughters, float &cosTheta, float &decayLength, float &V0DcaToVtx)
 {
   // -- get helix
+  TVector3 pos1(rcTrkLoca2->At(index1) * sin(rcTrkPhi2->At(index1)) * -1, rcTrkLoca2->At(index1) * cos(rcTrkPhi2->At(index1)), rcTrkLocb2->At(index1));
+  TVector3 mom1(rcMomPx2->At(index1), rcMomPy2->At(index1), rcMomPz2->At(index1));
+
+  TVector3 pos2(rcTrkLoca2->At(index2) * sin(rcTrkPhi2->At(index2)) * -1, rcTrkLoca2->At(index2) * cos(rcTrkPhi2->At(index2)), rcTrkLocb2->At(index2));
+  TVector3 mom2(rcMomPx2->At(index2), rcMomPy2->At(index2), rcMomPz2->At(index2));
+
+  float charge1 = rcCharge2->At(index1);
+  float charge2 = rcCharge2->At(index2);
+  
   StPhysicalHelix p1Helix(mom1, pos1, bField * tesla, charge1);
   StPhysicalHelix p2Helix(mom2, pos2, bField * tesla, charge2);
 
@@ -653,11 +611,15 @@ TLorentzVector getPairParent(TVector3 mom1, TVector3 pos1, float charge1, TVecto
   TVector3 const p2Mom = p2Helix.momentum(bField * tesla);
   StPhysicalHelix const p1StraightLine(p1Mom, p1Helix.origin(), 0, charge1);
   StPhysicalHelix const p2StraightLine(p2Mom, p2Helix.origin(), 0, charge2);
+  // printf("p1Helix origin = (%2.4f, %2.4f, %2.4f)\n", p1Helix.origin().x(), p1Helix.origin().y(), p1Helix.origin().z());
+  // printf("p2Helix origin = (%2.4f, %2.4f, %2.4f)\n", p2Helix.origin().x(), p2Helix.origin().y(), p2Helix.origin().z());
   
   pair<double, double> const ss = p1StraightLine.pathLengths(p2StraightLine);
   TVector3 const p1AtDcaToP2 = p1StraightLine.at(ss.first);
   TVector3 const p2AtDcaToP1 = p2StraightLine.at(ss.second);
-  //cout << ss.first << "  " << ss.second << endl;
+  // cout << ss.first << "  " << ss.second << endl;
+  // printf("p1AtDcaToP2 origin = (%2.4f, %2.4f, %2.4f)\n", p1AtDcaToP2.x(), p1AtDcaToP2.y(), p1AtDcaToP2.z());
+  // printf("p2AtDcaToP1 origin = (%2.4f, %2.4f, %2.4f)\n", p2AtDcaToP1.x(), p2AtDcaToP1.y(), p2AtDcaToP1.z());
   
   // -- calculate DCA of particle1 to particle2 at their DCA
   dcaDaughters = (p1AtDcaToP2 - p2AtDcaToP1).Mag();
