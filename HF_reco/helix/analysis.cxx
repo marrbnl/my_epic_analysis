@@ -170,7 +170,7 @@ int main(int argc, char **argv)
   const char* pair_title[2] = {"Signal", "Background"};
   for(int i=0; i<2; i++)
     {
-      h3PairDca12[i] = new TH3F(Form("h3PairDca12_%s", pair_name[i]), Form("%s pair DCA_{12};p_{T} (GeV/c);#eta;DCA_{12} (mm)", pair_title[i]), 100, 0, 10, 20, -5, 5, 100, 0, 0.2);
+      h3PairDca12[i] = new TH3F(Form("h3PairDca12_%s", pair_name[i]), Form("%s pair DCA_{12};p_{T} (GeV/c);#eta;DCA_{12} (mm)", pair_title[i]), 100, 0, 10, 20, -5, 5, 100, 0, 1);
 
       h3PairCosTheta[i] = new TH3F(Form("h3PairCosTheta_%s", pair_name[i]), Form("%s pair cos(#theta);p_{T} (GeV/c);#eta;cos(#theta)", pair_title[i]), 100, 0, 10, 20, -5, 5, 100, -1, 1);
 
@@ -402,6 +402,10 @@ int main(int argc, char **argv)
 		}
 	    }
 	  if(iSimPartID<0) continue;
+	  
+	  TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
+	  if(dcaToVtx.Pt() < 0.02) continue;
+	    
 	  if(fabs(mcPartPdg[iSimPartID]) == 211) pi_index.push_back(rc_index);
 	  if(fabs(mcPartPdg[iSimPartID]) == 321) k_index.push_back(rc_index);
 	}
@@ -413,7 +417,6 @@ int main(int argc, char **argv)
 	    {
 	      if(rcCharge[pi_index[i]]*rcCharge[k_index[j]]<0)
 		{
-
 		  // -- only look at signal pi+k pair
 		  bool is_D0_pik = true;
 		  if(hasD0)
@@ -422,7 +425,7 @@ int main(int argc, char **argv)
 			{
 			  if(assocChRecID[k]==pi_index[i])
 			    {
-			      if(assocChSimID[k]!=mc_index_D0_pi)
+			      if((int)assocChSimID[k]!=mc_index_D0_pi)
 				{
 				  is_D0_pik = false;
 				  break;
@@ -431,7 +434,7 @@ int main(int argc, char **argv)
 
 			  if(assocChRecID[k]==k_index[j])
 			    {
-			      if(assocChSimID[k]!=mc_index_D0_k)
+			      if((int)assocChSimID[k]!=mc_index_D0_k)
 				{
 				  is_D0_pik = false;
 				  break;
@@ -470,43 +473,22 @@ int main(int argc, char **argv)
 	    }
 	}
 
-      // loop over reconstructed particles
-      vector<int> pi_dca_index;
-      vector<int> k_dca_index;
-      pi_dca_index.clear();
-      k_dca_index.clear();
-      for(unsigned int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
-	{
-	  int iSimPartID = -1;
-	  for(int j=0; j<nAssoc; j++)
-	    {
-	      if(assocChRecID[j]==rc_index)
-		{
-		  iSimPartID = assocChSimID[j];
-		  break;
-		}
-	    }
-	  if(iSimPartID<0) continue;
-	  if(fabs(mcPartPdg[iSimPartID]) != 211 && fabs(mcPartPdg[iSimPartID]) != 321) continue;
-
-	  TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
-	  if(dcaToVtx.Pt() > 0.02)
-	    {
-	      if(fabs(mcPartPdg[iSimPartID]) == 211) pi_dca_index.push_back(rc_index);
-	      if(fabs(mcPartPdg[iSimPartID]) == 321) k_dca_index.push_back(rc_index);
-	    }
-	}
       // pair pion and kaon
-      for(unsigned int i=0; i<pi_dca_index.size(); i++)
+      for(unsigned int i=0; i<pi_index.size(); i++)
 	{
-	  for(unsigned int j=0; j<k_dca_index.size(); j++)
+	  TVector3 dcaToVtx = getDcaToVtx(pi_index[i], vertex_rc);
+	  if(dcaToVtx.Pt() < 0.02) continue;
+	    
+	  for(unsigned int j=0; j<k_index.size(); j++)
 	    {
-
+	      TVector3 dcaToVtx2 = getDcaToVtx(k_index[j], vertex_rc);
+	      if(dcaToVtx2.Pt() < 0.02) continue;
+	  
 	      float dcaDaughters, cosTheta, decayLength, V0DcaToVtx; 
-	      TLorentzVector parent = getPairParent(pi_dca_index[i], k_dca_index[j], vertex_rc,
+	      TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc,
 						    dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
 
-	      if(dcaDaughters < 0.002 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
+	      if(dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
 		{
 		  if(hasD0)
 		    {
@@ -602,21 +584,27 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   StPhysicalHelix p1Helix(mom1, pos1, bField * tesla, charge1);
   StPhysicalHelix p2Helix(mom2, pos2, bField * tesla, charge2);
 
-  // -- move origin
-  p1Helix.moveOrigin(p1Helix.pathLength(vtx));
-  p2Helix.moveOrigin(p2Helix.pathLength(vtx));
-		  
+
   // -- use straight lines approximation to get point of DCA of particle1-particle2 pair
-  TVector3 const p1Mom = p1Helix.momentum(bField * tesla);
-  TVector3 const p2Mom = p2Helix.momentum(bField * tesla);
-  StPhysicalHelix const p1StraightLine(p1Mom, p1Helix.origin(), 0, charge1);
-  StPhysicalHelix const p2StraightLine(p2Mom, p2Helix.origin(), 0, charge2);
-  // printf("p1Helix origin = (%2.4f, %2.4f, %2.4f)\n", p1Helix.origin().x(), p1Helix.origin().y(), p1Helix.origin().z());
-  // printf("p2Helix origin = (%2.4f, %2.4f, %2.4f)\n", p2Helix.origin().x(), p2Helix.origin().y(), p2Helix.origin().z());
+  // -- this is used to save time in heavy-ion collisions 
+  // -- move origin
+  // p1Helix.moveOrigin(p1Helix.pathLength(vtx));
+  // p2Helix.moveOrigin(p2Helix.pathLength(vtx));
+		  
+  // TVector3 const p1Mom = p1Helix.momentum(bField * tesla);
+  // TVector3 const p2Mom = p2Helix.momentum(bField * tesla);
+
+  // StPhysicalHelix const p1StraightLine(p1Mom, p1Helix.origin(), 0, charge1);
+  // StPhysicalHelix const p2StraightLine(p2Mom, p2Helix.origin(), 0, charge2);
   
-  pair<double, double> const ss = p1StraightLine.pathLengths(p2StraightLine);
-  TVector3 const p1AtDcaToP2 = p1StraightLine.at(ss.first);
-  TVector3 const p2AtDcaToP1 = p2StraightLine.at(ss.second);
+  // pair<double, double> const ss = p1StraightLine.pathLengths(p2StraightLine);
+  // TVector3 const p1AtDcaToP2 = p1StraightLine.at(ss.first);
+  // TVector3 const p2AtDcaToP1 = p2StraightLine.at(ss.second);
+
+  // -- Full calculation 
+  pair<double, double> const ss = p1Helix.pathLengths(p2Helix);
+  TVector3 const p1AtDcaToP2 = p1Helix.at(ss.first);
+  TVector3 const p2AtDcaToP1 = p2Helix.at(ss.second);
   // cout << ss.first << "  " << ss.second << endl;
   // printf("p1AtDcaToP2 origin = (%2.4f, %2.4f, %2.4f)\n", p1AtDcaToP2.x(), p1AtDcaToP2.y(), p1AtDcaToP2.z());
   // printf("p2AtDcaToP1 origin = (%2.4f, %2.4f, %2.4f)\n", p2AtDcaToP1.x(), p2AtDcaToP1.y(), p2AtDcaToP1.z());
@@ -634,10 +622,10 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   TLorentzVector parent = p1FourMom + p2FourMom;
 	
   // -- calculate cosThetaStar
-  TLorentzVector pairFourMomReverse(-parent.Px(), -parent.Py(), -parent.Pz(), parent.E());
-  TLorentzVector p1FourMomStar = p1FourMom;
-  p1FourMomStar.Boost(pairFourMomReverse.Vect());
-  float cosThetaStar = std::cos(p1FourMomStar.Vect().Angle(parent.Vect()));
+  // TLorentzVector pairFourMomReverse(-parent.Px(), -parent.Py(), -parent.Pz(), parent.E());
+  // TLorentzVector p1FourMomStar = p1FourMom;
+  // p1FourMomStar.Boost(pairFourMomReverse.Vect());
+  // float cosThetaStar = std::cos(p1FourMomStar.Vect().Angle(parent.Vect()));
 	
   // -- calculate decay vertex (secondary or tertiary)
   TVector3 decayVertex = (p1AtDcaToP2 + p2AtDcaToP1) * 0.5 ;
