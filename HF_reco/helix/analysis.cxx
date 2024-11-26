@@ -312,6 +312,7 @@ int main(int argc, char **argv)
 		      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
 		      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
 		      //printf("Prim %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_index, pos.x(), pos.y(), pos.z(), mcPartVx[imc], mcPartVy[imc], mcPartVz[imc]);
+		      //printf("Prim %d: DCA = (%2.4f, %2.4f, %2.4f)\n", rc_index, dcaToVtx.x(), dcaToVtx.y(), dcaToVtx.z());
 		    }
 		}
             }
@@ -443,9 +444,8 @@ int main(int argc, char **argv)
 			}
 		    }
 
-		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx; 
+		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
 		  TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc, dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
-
 		  if(hasD0)
 		    {
 		      if(is_D0_pik)
@@ -484,7 +484,7 @@ int main(int argc, char **argv)
 	      TVector3 dcaToVtx2 = getDcaToVtx(k_index[j], vertex_rc);
 	      if(dcaToVtx2.Pt() < 0.02) continue;
 	  
-	      float dcaDaughters, cosTheta, decayLength, V0DcaToVtx; 
+	      float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
 	      TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc,
 						    dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
 
@@ -558,12 +558,18 @@ TVector3 getDcaToVtx(const int index, TVector3 vtx)
 {
   //printf("check %d: (%2.4f, %2.4f, %2.4f) =? (%2.4f, %2.4f, %2.4f)\n", index, mom.x(), mom.y(), mom.z(), rcMomPx2->At(index), rcMomPy2->At(index), rcMomPz2->At(index));
 
-  TVector3 pos(rcTrkLoca2->At(index) * sin(rcTrkPhi2->At(index)) * -1, rcTrkLoca2->At(index) * cos(rcTrkPhi2->At(index)), rcTrkLocb2->At(index));
+  TVector3 pos(rcTrkLoca2->At(index) * sin(rcTrkPhi2->At(index)) * -1 * millimeter, rcTrkLoca2->At(index) * cos(rcTrkPhi2->At(index)) * millimeter, rcTrkLocb2->At(index) * millimeter);
   TVector3 mom(rcMomPx2->At(index), rcMomPy2->At(index), rcMomPz2->At(index));
    
   StPhysicalHelix pHelix(mom, pos, bField * tesla, rcCharge2->At(index));
+
+  vtx.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
+  
   pHelix.moveOrigin(pHelix.pathLength(vtx));
   TVector3 dcaToVtx = pHelix.origin() - vtx;
+
+  dcaToVtx.SetXYZ(dcaToVtx.x()/millimeter, dcaToVtx.y()/millimeter, dcaToVtx.z()/millimeter);
+  
   return dcaToVtx;
 }
 
@@ -572,10 +578,10 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
 			     float &dcaDaughters, float &cosTheta, float &decayLength, float &V0DcaToVtx)
 {
   // -- get helix
-  TVector3 pos1(rcTrkLoca2->At(index1) * sin(rcTrkPhi2->At(index1)) * -1, rcTrkLoca2->At(index1) * cos(rcTrkPhi2->At(index1)), rcTrkLocb2->At(index1));
+  TVector3 pos1(rcTrkLoca2->At(index1) * sin(rcTrkPhi2->At(index1)) * -1 * millimeter, rcTrkLoca2->At(index1) * cos(rcTrkPhi2->At(index1)) * millimeter, rcTrkLocb2->At(index1) * millimeter);
   TVector3 mom1(rcMomPx2->At(index1), rcMomPy2->At(index1), rcMomPz2->At(index1));
 
-  TVector3 pos2(rcTrkLoca2->At(index2) * sin(rcTrkPhi2->At(index2)) * -1, rcTrkLoca2->At(index2) * cos(rcTrkPhi2->At(index2)), rcTrkLocb2->At(index2));
+  TVector3 pos2(rcTrkLoca2->At(index2) * sin(rcTrkPhi2->At(index2)) * -1 * millimeter, rcTrkLoca2->At(index2) * cos(rcTrkPhi2->At(index2)) * millimeter, rcTrkLocb2->At(index2) * millimeter);
   TVector3 mom2(rcMomPx2->At(index2), rcMomPy2->At(index2), rcMomPz2->At(index2));
 
   float charge1 = rcCharge2->At(index1);
@@ -584,6 +590,7 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   StPhysicalHelix p1Helix(mom1, pos1, bField * tesla, charge1);
   StPhysicalHelix p2Helix(mom2, pos2, bField * tesla, charge2);
 
+  vtx.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
 
   // -- use straight lines approximation to get point of DCA of particle1-particle2 pair
   // -- this is used to save time in heavy-ion collisions 
@@ -610,7 +617,7 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   // printf("p2AtDcaToP1 origin = (%2.4f, %2.4f, %2.4f)\n", p2AtDcaToP1.x(), p2AtDcaToP1.y(), p2AtDcaToP1.z());
   
   // -- calculate DCA of particle1 to particle2 at their DCA
-  dcaDaughters = (p1AtDcaToP2 - p2AtDcaToP1).Mag();
+  dcaDaughters = (p1AtDcaToP2 - p2AtDcaToP1).Mag()/millimeter;
 	
   // -- calculate Lorentz vector of particle1-particle2 pair
   TVector3 const p1MomAtDca = p1Helix.momentumAt(ss.first,  bField * tesla);
@@ -636,7 +643,7 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   TVector3 vtxToV0 = decayVertex - vtx;
   float pointingAngle = vtxToV0.Angle(parent.Vect());
   cosTheta = std::cos(pointingAngle);
-  decayLength = vtxToV0.Mag();
+  decayLength = vtxToV0.Mag()/millimeter;
 
   // -- calculate V0 DCA to primary vertex
   V0DcaToVtx = decayLength * std::sin(pointingAngle);
