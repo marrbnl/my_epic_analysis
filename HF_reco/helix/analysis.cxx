@@ -414,11 +414,13 @@ int main(int argc, char **argv)
       // pair pion and kaon
       for(unsigned int i=0; i<pi_index.size(); i++)
 	{
+	  TVector3 dcaToVtx = getDcaToVtx(pi_index[i], vertex_rc);
 	  for(unsigned int j=0; j<k_index.size(); j++)
 	    {
+	      TVector3 dcaToVtx2 = getDcaToVtx(k_index[j], vertex_rc);
 	      if(rcCharge[pi_index[i]]*rcCharge[k_index[j]]<0)
 		{
-		  // -- only look at signal pi+k pair
+		  // -- only look at unlike-sign pi+k pair
 		  bool is_D0_pik = true;
 		  if(hasD0)
 		    {
@@ -446,17 +448,13 @@ int main(int argc, char **argv)
 
 		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
 		  TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc, dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
-		  if(hasD0)
+		  if(hasD0 && is_D0_pik)
 		    {
-		      if(is_D0_pik)
-			{
-			  //cout << p1FourMom.M() << "  " << p2FourMom.M() << "  " << parent.M() << endl;
-			  h3PairDca12[0]->Fill(parent.Pt(), parent.Rapidity(), dcaDaughters);
-			  h3PairCosTheta[0]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
-			  h3PairDca[0]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
-			  h3PairDecayLength[0]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
-			  //printf("Signal: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
-			}
+		      h3PairDca12[0]->Fill(parent.Pt(), parent.Rapidity(), dcaDaughters);
+		      h3PairCosTheta[0]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
+		      h3PairDca[0]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
+		      h3PairDecayLength[0]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
+		      //printf("Signal: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
 		      h3InvMass[0][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
 		  else
@@ -465,38 +463,22 @@ int main(int argc, char **argv)
 		      h3PairCosTheta[1]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
 		      h3PairDca[1]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
 		      h3PairDecayLength[1]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
-
+			  
 		      //printf("Bkg: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
 		      h3InvMass[1][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
-		}
-	    }
-	}
 
-      // pair pion and kaon
-      for(unsigned int i=0; i<pi_index.size(); i++)
-	{
-	  TVector3 dcaToVtx = getDcaToVtx(pi_index[i], vertex_rc);
-	  if(dcaToVtx.Pt() < 0.02) continue;
-	    
-	  for(unsigned int j=0; j<k_index.size(); j++)
-	    {
-	      TVector3 dcaToVtx2 = getDcaToVtx(k_index[j], vertex_rc);
-	      if(dcaToVtx2.Pt() < 0.02) continue;
-	  
-	      float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
-	      TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc,
-						    dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
-
-	      if(dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
-		{
-		  if(hasD0)
+		  if(dcaToVtx.Pt() >= 0.02 && dcaToVtx2.Pt() >= 0.02 &&
+		     dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
 		    {
-		      h3InvMass[0][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
-		    }
-		  else
-		    {
-		      h3InvMass[1][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
+		      if(hasD0 && is_D0_pik)
+			{
+			  h3InvMass[0][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
+			}
+		      else
+			{
+			  h3InvMass[1][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
+			}
 		    }
 		}
 	    }
