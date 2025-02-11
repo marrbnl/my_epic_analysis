@@ -222,6 +222,7 @@ int main(int argc, char **argv)
   TTreeReaderArray<float> rcPosy = {treereader, "ReconstructedChargedParticles.referencePoint.y"};
   TTreeReaderArray<float> rcPosz = {treereader, "ReconstructedChargedParticles.referencePoint.z"};
   TTreeReaderArray<float> rcCharge = {treereader, "ReconstructedChargedParticles.charge"};
+  TTreeReaderArray<int>   rcPdg = {treereader, "ReconstructedChargedParticles.PDG"};
 
   TTreeReaderArray<float> rcTrkLoca = {treereader, "CentralCKFTrackParameters.loc.a"};
   TTreeReaderArray<float> rcTrkLocb = {treereader, "CentralCKFTrackParameters.loc.b"};
@@ -274,6 +275,11 @@ int main(int argc, char **argv)
 	    }
 	}
 
+      hEventStat->Fill(0.5);
+      hMcVtxX->Fill(vertex_mc.x());
+      hMcVtxY->Fill(vertex_mc.y());
+      hMcVtxZ->Fill(vertex_mc.z());
+
       // get RC primary vertex
       TVector3 vertex_rc(-999., -999., -999.);
       if(prim_vtx_index.GetSize()>0)
@@ -284,10 +290,12 @@ int main(int argc, char **argv)
 
       // map MC and RC particles
       int nAssoc = assocChRecID.GetSize();
-      map<int, int> assoc_map;
+      map<int, int> assoc_map_to_rc;
+      map<int, int> assoc_map_to_mc;
       for(int j=0; j<nAssoc; j++)
 	{
-	  assoc_map[assocChSimID[j]] = assocChRecID[j];
+	  assoc_map_to_rc[assocChSimID[j]] = assocChRecID[j];
+	  assoc_map_to_mc[assocChRecID[j]] = assocChSimID[j];
 	}
 
       // Loop over primary particles
@@ -300,7 +308,7 @@ int main(int argc, char **argv)
 		{
 		  // check if the MC particle is reconstructed
 		  int rc_index = -1;
-		  if(assoc_map.find(imc) != assoc_map.end()) rc_index = assoc_map[imc];
+		  if(assoc_map_to_rc.find(imc) != assoc_map_to_rc.end()) rc_index = assoc_map_to_rc[imc];
 
 		  if(rc_index>=0)
 		    {
@@ -320,95 +328,101 @@ int main(int argc, char **argv)
 
       // look for D0
       bool hasD0 = false;
-      int mc_index_D0_pi = -1;
-      int mc_index_D0_k  = -1;
+      vector<int> mc_index_D0_pi;
+      vector<int> mc_index_D0_k;
+      mc_index_D0_pi.clear();
+      mc_index_D0_k.clear();
+      
       for(int imc=0; imc<nMCPart; imc++)
 	{
-	  if(fabs(mcPartPdg[imc]) == 421)
+	  if(fabs(mcPartPdg[imc]) != 421) continue;
+	  hEventStat->Fill(1.5);
+	  
+	  int nDuaghters = mcPartDaughter_end[imc]-mcPartDaughter_begin[imc];
+	  if(nDuaghters!=2) continue;
+
+	  // find D0 that decay into pi+K
+	  bool is_pik_decay = false;	  
+	  int daug_index_1 = mcPartDaughter_index[mcPartDaughter_begin[imc]];
+	  int daug_index_2 = mcPartDaughter_index[mcPartDaughter_begin[imc]+1];
+	  int daug_pdg_1 = mcPartPdg[daug_index_1];
+	  int daug_pdg_2 = mcPartPdg[daug_index_2];
+	  if( (fabs(daug_pdg_1)==321 && fabs(daug_pdg_2)==211) || (fabs(daug_pdg_1)==211 && fabs(daug_pdg_2)==321) )
 	    {
-	      hEventStat->Fill(1.5);
-	      int nDuaghters = mcPartDaughter_end[imc]-mcPartDaughter_begin[imc];
-	      if(nDuaghters!=2) continue;
+	      is_pik_decay = true;
+	    }
+	  if(!is_pik_decay) continue;
+	  if(fabs(daug_pdg_1)==211)
+	    {
+	      mc_index_D0_pi.push_back(daug_index_1);
+	      mc_index_D0_k.push_back(daug_index_2);
+	    }
+	  else
+	    {
+	      mc_index_D0_pi.push_back(daug_index_2);
+	      mc_index_D0_k.push_back(daug_index_1);
+	    }
+	  hasD0 = true;
+	  hEventStat->Fill(2.5);
 
-	      // find D0 that decay into pi+K
-	      bool is_pik_decay = false;
+	  // D0 kinematics
+	  TLorentzVector mc_mom_vec;
+	  mc_mom_vec.SetXYZM(mcMomPx[imc], mcMomPy[imc], mcMomPz[imc], mcPartMass[imc]);
+	  double mcRap = mc_mom_vec.Rapidity();
+	  double mcPt = mc_mom_vec.Pt();
+	  hMCD0PtRap->Fill(mcRap, mcPt);
+
+	  // decay dauther kinematics
+	  for(int ip = 0; ip<2; ip++)
+	    {
+	      int mc_part_index;
+	      if(ip==0) mc_part_index = mc_index_D0_pi[mc_index_D0_pi.size()-1];
+	      if(ip==1) mc_part_index = mc_index_D0_k[mc_index_D0_k.size()-1];
 	      
-	      int daug_index_1 = mcPartDaughter_index[mcPartDaughter_begin[imc]];
-	      int daug_index_2 = mcPartDaughter_index[mcPartDaughter_begin[imc]+1];
-	      int daug_pdg_1 = mcPartPdg[daug_index_1];
-	      int daug_pdg_2 = mcPartPdg[daug_index_2];
-	      if( (fabs(daug_pdg_1)==321 && fabs(daug_pdg_2)==211) || (fabs(daug_pdg_1)==211 && fabs(daug_pdg_2)==321) )
+	      TLorentzVector mc_part_vec;
+	      mc_part_vec.SetXYZM(mcMomPx[mc_part_index], mcMomPy[mc_part_index], mcMomPz[mc_part_index], mcPartMass[mc_part_index]);
+	      if(ip==0) hMcPiPtEta->Fill(mc_part_vec.Eta(), mc_part_vec.Pt());
+	      if(ip==1) hMcKPtEta->Fill(mc_part_vec.Eta(), mc_part_vec.Pt());
+		  
+	      int rc_part_index = -1;
+	      if(assoc_map_to_rc.find(mc_part_index) != assoc_map_to_rc.end()) rc_part_index = assoc_map_to_rc[mc_part_index];
+	      if(rc_part_index>=0)
 		{
-		  is_pik_decay = true;
-		}
-	      if(!is_pik_decay) continue;
-	      hasD0 = true;
-	      hEventStat->Fill(2.5);
-
-	      // D0 kinematics
-	      TLorentzVector mc_mom_vec;
-	      mc_mom_vec.SetXYZM(mcMomPx[imc], mcMomPy[imc], mcMomPz[imc], mcPartMass[imc]);
-	      double mcRap = mc_mom_vec.Rapidity();
-	      double mcPt = mc_mom_vec.Pt();
-	      hMCD0PtRap->Fill(mcRap, mcPt);
-
-	      // decay dauther kinematics
-	      mc_index_D0_pi = fabs(daug_pdg_1)==211 ? daug_index_1 : daug_index_2;
-	      mc_index_D0_k = fabs(daug_pdg_1)==321 ? daug_index_1 : daug_index_2;
-	      for(int ip = 0; ip<2; ip++)
-		{
-		  int mc_part_index;
-		  if(ip==0) mc_part_index = mc_index_D0_pi;
-		  if(ip==1) mc_part_index = mc_index_D0_k;
-
-		  TLorentzVector mc_part_vec;
-		  mc_part_vec.SetXYZM(mcMomPx[mc_part_index], mcMomPy[mc_part_index], mcMomPz[mc_part_index], mcPartMass[mc_part_index]);
-		  if(ip==0) hMcPiPtEta->Fill(mc_part_vec.Eta(), mc_part_vec.Pt());
-		  if(ip==1) hMcKPtEta->Fill(mc_part_vec.Eta(), mc_part_vec.Pt());
-
-		  int rc_part_index = -1;
-		  if(assoc_map.find(mc_part_index) != assoc_map.end()) rc_part_index = assoc_map[mc_part_index];
-		  if(rc_part_index>=0)
-		    {
-		      TVector3 dcaToVtx = getDcaToVtx(rc_part_index, vertex_rc);
-
-		      TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
-		      hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
-		      hRcSecPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
-
-		      //printf("Sec %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_part_index, pos.x(), pos.y(), pos.z(), mcPartVx[mc_part_index], mcPartVy[mc_part_index], mcPartVz[mc_part_index]);
-		    }
+		  TVector3 dcaToVtx = getDcaToVtx(rc_part_index, vertex_rc);
+		  
+		  TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
+		  hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
+		  hRcSecPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
 		}
 	    }
 	}
-      hEventStat->Fill(0.5);
-      hMcVtxX->Fill(vertex_mc.x());
-      hMcVtxY->Fill(vertex_mc.y());
-      hMcVtxZ->Fill(vertex_mc.z());
 
-      // Get pair information
+
+      // Get reconstructed pions and kaons
+      const int pid_mode = 1; // 0 - truth; 1 - realistic
       vector<unsigned int> pi_index;
       vector<unsigned int> k_index;
       pi_index.clear();
       k_index.clear();
       for(unsigned int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
 	{	  
-	  int iSimPartID = -1;
-	  for(int j=0; j<nAssoc; j++)
+	  if(pid_mode==0)
 	    {
-	      if(assocChRecID[j]==rc_index)
+	      // Use truth PID information
+	      int iSimPartID = -1;
+	      if(assoc_map_to_mc.find(rc_index) != assoc_map_to_mc.end()) iSimPartID = assoc_map_to_mc[rc_index];
+	      if(iSimPartID>=0)
 		{
-		  iSimPartID = assocChSimID[j];
-		  break;
+		  if(fabs(mcPartPdg[iSimPartID]) == 211) pi_index.push_back(rc_index);
+		  if(fabs(mcPartPdg[iSimPartID]) == 321) k_index.push_back(rc_index);
 		}
 	    }
-	  if(iSimPartID<0) continue;
-	  
-	  TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
-	  if(dcaToVtx.Pt() < 0.02) continue;
-	    
-	  if(fabs(mcPartPdg[iSimPartID]) == 211) pi_index.push_back(rc_index);
-	  if(fabs(mcPartPdg[iSimPartID]) == 321) k_index.push_back(rc_index);
+	  else if(pid_mode==1)
+	    {
+	      // Use reconstructed PID
+	      if(fabs(rcPdg[rc_index]) == 211) pi_index.push_back(rc_index);
+	      if(fabs(rcPdg[rc_index]) == 321) k_index.push_back(rc_index);
+	    }
 	}
 
       // pair pion and kaon
@@ -421,40 +435,28 @@ int main(int argc, char **argv)
 	      if(rcCharge[pi_index[i]]*rcCharge[k_index[j]]<0)
 		{
 		  // -- only look at unlike-sign pi+k pair
-		  bool is_D0_pik = true;
-		  if(hasD0)
-		    {
-		      for(int k=0; k<nAssoc; k++)
-			{
-			  if(assocChRecID[k]==pi_index[i])
-			    {
-			      if((int)assocChSimID[k]!=mc_index_D0_pi)
-				{
-				  is_D0_pik = false;
-				  break;
-				}
-			    }
+		  bool is_D0_pik = false;
+		  int mc_index_pi = -1, mc_index_k = -1;
+		  if(assoc_map_to_mc.find(pi_index[i]) != assoc_map_to_mc.end()) mc_index_pi = assoc_map_to_mc[pi_index[i]];
+		  if(assoc_map_to_mc.find(k_index[j])  != assoc_map_to_mc.end()) mc_index_k  = assoc_map_to_mc[k_index[j]];
 
-			  if(assocChRecID[k]==k_index[j])
-			    {
-			      if((int)assocChSimID[k]!=mc_index_D0_k)
-				{
-				  is_D0_pik = false;
-				  break;
-				}
-			    }
+		  for(unsigned int k=0; k<mc_index_D0_pi.size(); k++)
+		    {
+		      if(mc_index_pi==mc_index_D0_pi[k] && mc_index_k==mc_index_D0_k[k])
+			{
+			  is_D0_pik = true;
+			  break;
 			}
 		    }
 
 		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
 		  TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc, dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
-		  if(hasD0 && is_D0_pik)
+		  if(is_D0_pik)
 		    {
 		      h3PairDca12[0]->Fill(parent.Pt(), parent.Rapidity(), dcaDaughters);
 		      h3PairCosTheta[0]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
 		      h3PairDca[0]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
 		      h3PairDecayLength[0]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
-		      //printf("Signal: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
 		      h3InvMass[0][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
 		  else
@@ -463,15 +465,13 @@ int main(int argc, char **argv)
 		      h3PairCosTheta[1]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
 		      h3PairDca[1]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
 		      h3PairDecayLength[1]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
-			  
-		      //printf("Bkg: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
 		      h3InvMass[1][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
 
 		  if(dcaToVtx.Pt() >= 0.02 && dcaToVtx2.Pt() >= 0.02 &&
 		     dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
 		    {
-		      if(hasD0 && is_D0_pik)
+		      if(is_D0_pik)
 			{
 			  h3InvMass[0][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 			}
