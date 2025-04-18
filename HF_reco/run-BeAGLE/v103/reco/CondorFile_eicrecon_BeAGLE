@@ -1,0 +1,30 @@
+
+Universe    = vanilla
+Executable  = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/run_eicreco_BeAGLE.sh
+GetEnv  =  False
++SingularityImage="/cvmfs/singularity.opensciencegrid.org/eicweb/eic_xl:nightly"
+
+Output    = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_10.filterD0.0.out
+Error     = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_10.filterD0.0.err
+Arguments = eAu_10.filterD0.0 Geo25.03.1
+Queue
+
+Output    = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_6.filterD0.0.out
+Error     = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_6.filterD0.0.err
+Arguments = eAu_6.filterD0.0 Geo25.03.1
+Queue
+
+Output    = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_7.filterD0.0.out
+Error     = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_7.filterD0.0.err
+Arguments = eAu_7.filterD0.0 Geo25.03.1
+Queue
+
+Output    = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_8.filterD0.0.out
+Error     = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_8.filterD0.0.err
+Arguments = eAu_8.filterD0.0 Geo25.03.1
+Queue
+
+Output    = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_9.filterD0.0.out
+Error     = /gpfs/mnt/gpfs02/eic/rongrong/BeAGLE/D0/eAu_10x100_Q2min1/Geo25.03.1/log/eAu_9.filterD0.0.err
+Arguments = eAu_9.filterD0.0 Geo25.03.1
+Queue
