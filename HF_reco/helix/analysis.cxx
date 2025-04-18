@@ -363,9 +363,9 @@ int main(int argc, char **argv)
 			      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
 			    }
 
-			  double fill1[] = {mom.Pt(), mom.Eta(), dcaToVtx.x(), nMcPart};
-			  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.y(), nMcPart};
-			  double fill3[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart};
+			  double fill1[] = {mom.Pt(), mom.Eta(), dcaToVtx.x(), nMcPart*1.};
+			  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.y(), nMcPart*1.};
+			  double fill3[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart*1.};
 			  hPrimTrkDcaToRCVtx[ip][0]->Fill(fill1);
 			  hPrimTrkDcaToRCVtx[ip][1]->Fill(fill2);
 			  hPrimTrkDcaToRCVtx[ip][2]->Fill(fill3);
@@ -449,7 +449,7 @@ int main(int argc, char **argv)
 	}
 
       // Get reconstructed pions and kaons
-      hNRecoVtx->Fill(CTVx.size());
+      hNRecoVtx->Fill(CTVx.GetSize());
       const int pid_mode = 1; // 0 - truth; 1 - realistic
       vector<unsigned int> pi_index;
       vector<unsigned int> k_index;
@@ -490,31 +490,6 @@ int main(int argc, char **argv)
 		  if(assoc_map_to_mc.find(pi_index[i]) != assoc_map_to_mc.end()) mc_index_pi = assoc_map_to_mc[pi_index[i]];
 		  if(assoc_map_to_mc.find(k_index[j])  != assoc_map_to_mc.end()) mc_index_k  = assoc_map_to_mc[k_index[j]];
 
-		  // // int mc_index_pi_2 = -1, mc_index_k_2 = -1;
-		  // // for(int k=0; k<nAssoc; k++)
-		  // //   {
-		  // //     if(assocChRecID[k]==pi_index[i]) 
-		  // // 	{
-		  // // 	  mc_index_pi_2 = assocChSimID[k];
-		  // // 	}
-		  // //     if(assocChRecID[k]==k_index[j])
-		  // // 	{
-		  // // 	  mc_index_k_2 = assocChSimID[k];
-		  // // 	}
-		  // //   }
-		  // // printf("[c] cross check mc_index: %d =? %d, %d =? %d\n", mc_index_pi, mc_index_pi_2, mc_index_k, mc_index_k_2);
-
-		  // if( mc_index_pi>=0
-		  //     && mcPartParent_end[mc_index_pi]-mcPartParent_begin[mc_index_pi]==1
-		  //     && fabs(mcPartPdg[mcPartParent_index[mcPartParent_begin[mc_index_pi]]]) == 421
-		  //     && mc_index_k>=0
-		  //     && mcPartParent_end[mc_index_k]-mcPartParent_begin[mc_index_k]==1
-		  //     && fabs(mcPartPdg[mcPartParent_index[mcPartParent_begin[mc_index_k]]]) == 421
-		  //     && mcPartParent_index[mcPartParent_begin[mc_index_pi]] == mcPartParent_index[mcPartParent_begin[mc_index_k]] )
-		  //   {
-		  //     is_D0_pik = true;
-		  //   }
-
 		  for(unsigned int k=0; k<mc_index_D0_pi.size(); k++)
 		    {
 		      if(mc_index_pi==mc_index_D0_pi[k] && mc_index_k==mc_index_D0_k[k])
@@ -523,47 +498,9 @@ int main(int argc, char **argv)
 			  break;
 			}
 		    }
-		  // for(int k=0; k<nAssoc; k++)
-		  //   {
-		  //     if(assocChRecID[k]==pi_index[i] || assocChRecID[k]==k_index[j])
-		  // 	{
-		  // 	  int iSimPartID = assocChSimID[k];
-		  // 	  // check if it comes from D0 decay
-		  // 	  bool is_parent_D0 = false;
-		  // 	  for(unsigned int iparent = mcPartParent_begin[iSimPartID]; iparent<mcPartParent_end[iSimPartID]; iparent++)
-		  // 	    {
-		  // 	      int parent_index = mcPartParent_index[iparent];
-		  // 	      printf("- Particle %d (mc_index = %d) has %d parent (%d) id = %d, pdg = %d\n", assocChRecID[k], iSimPartID, mcPartParent_end[iSimPartID]-mcPartParent_begin[iSimPartID], iparent, parent_index, mcPartPdg[parent_index]);
-		  // 	    }
-		  // 	}
-		  //   }
-		  //printf("[i] is signal pair? %d\n", is_D0_pik_2);
-
-		  // if(is_D0_pik_2)
-		  //   {
-		  //     if(pi_index_rc.count(pi_index[i]))
-		  //   }
 
 		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
 		  TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc, dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
-
-		  // if(is_D0_pik!=is_D0_pik_2)
-		  //   {
-		  //     cout << "Found one: is_D0_pik = " << is_D0_pik << ", is_D0_pik_2 = " << is_D0_pik_2 << endl;
-		  //     cout << "mc_index_pi = " << mc_index_pi << ", mc_index_k = " << mc_index_k << endl;
-		  //     cout << "Parent mass = " << parent.M() << endl;
-
-		  //     for(int imc=0; imc<nMCPart; imc++)
-		  // 	{
-		  // 	  printf("[i] MC particle %d, pdg = %d, status = %d\n", imc, mcPartPdg[imc], mcPartGenStatus[imc]);
-		  // 	  for(unsigned int idaughter = mcPartDaughter_begin[imc]; idaughter<mcPartDaughter_end[imc]; idaughter++)
-		  // 	    {
-		  // 	      printf("+++ Daughter index = %d, pdg = %d\n", mcPartDaughter_index[idaughter], mcPartPdg[mcPartDaughter_index[idaughter]]);
-		  // 	    }
-		      
-		  // 	}
-		  //   }
-
 				  
 		  if(is_D0_pik)
 		    {
@@ -595,24 +532,6 @@ int main(int argc, char **argv)
 		      else
 			{
 			  h3InvMass[1][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
-			  // if(parent.M()<1.88 && parent.M()>1.84)
-			  //   {
-			  //     cout << "Found one: is_D0_pik = " << is_D0_pik << ", is_D0_pik_2 = " << is_D0_pik_2 << endl;
-			  //     cout << "mc_index_pi = " << mc_index_pi << ", mc_index_k = " << mc_index_k << endl;
-			  //     cout << "Parent mass = " << parent.M() << endl;
-
-			  //     for(unsigned int iparent = mcPartParent_begin[mc_index_pi]; iparent<mcPartParent_end[mc_index_pi]; iparent++)
-			  // 	{
-			  // 	  int parent_index = mcPartParent_index[iparent];
-			  // 	  printf("- Particle %d (mc_index = %d) has %d parent (%d) id = %d, pdg = %d\n", pi_index[i], mc_index_pi, mcPartParent_end[mc_index_pi]-mcPartParent_begin[mc_index_pi], iparent, parent_index, mcPartPdg[parent_index]);
-			  // 	}
-			      
-			  //     for(unsigned int iparent = mcPartParent_begin[mc_index_k]; iparent<mcPartParent_end[mc_index_k]; iparent++)
-			  // 	{
-			  // 	  int parent_index = mcPartParent_index[iparent];
-			  // 	  printf("- Particle %d (mc_index = %d) has %d parent (%d) id = %d, pdg = %d\n", k_index[j], mc_index_k, mcPartParent_end[mc_index_k]-mcPartParent_begin[mc_index_k], iparent, parent_index, mcPartPdg[parent_index]);
-			  // 	}
-			  //   }
 			}
 		    }
 		}
