@@ -545,10 +545,11 @@ TVector3 getDcaToVtx(const int index, TVector3 vtx)
    
   StPhysicalHelix pHelix(mom, pos, bField * tesla, rcCharge2->At(index));
 
-  vtx.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
+  TVector3 vtx_tmp;
+  vtx_tmp.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
   
-  pHelix.moveOrigin(pHelix.pathLength(vtx));
-  TVector3 dcaToVtx = pHelix.origin() - vtx;
+  pHelix.moveOrigin(pHelix.pathLength(vtx_tmp));
+  TVector3 dcaToVtx = pHelix.origin() - vtx_tmp;
 
   dcaToVtx.SetXYZ(dcaToVtx.x()/millimeter, dcaToVtx.y()/millimeter, dcaToVtx.z()/millimeter);
   
@@ -572,7 +573,8 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   StPhysicalHelix p1Helix(mom1, pos1, bField * tesla, charge1);
   StPhysicalHelix p2Helix(mom2, pos2, bField * tesla, charge2);
 
-  vtx.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
+  TVector3 vtx_tmp;
+  vtx_tmp.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
 
   // -- use straight lines approximation to get point of DCA of particle1-particle2 pair
   // -- this is used to save time in heavy-ion collisions 
@@ -622,7 +624,7 @@ TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
   // -- calculate pointing angle and decay length with respect to primary vertex
   //    if decay vertex is a tertiary vertex
   //    -> only rough estimate -> needs to be updated after secondary vertex is found
-  TVector3 vtxToV0 = decayVertex - vtx;
+  TVector3 vtxToV0 = decayVertex - vtx_tmp;
   float pointingAngle = vtxToV0.Angle(parent.Vect());
   cosTheta = std::cos(pointingAngle);
   decayLength = vtxToV0.Mag()/millimeter;
