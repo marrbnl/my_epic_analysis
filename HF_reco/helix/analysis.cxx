@@ -17,7 +17,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
-
 #include "math.h"
 #include "string.h"
 
@@ -27,6 +26,7 @@
 #include "TH1D.h"
 #include "TH2D.h"
 #include "TH3D.h"
+#include "THnSparse.h"
 #include "TStyle.h"
 #include "TCanvas.h"
 #include "TProfile.h"
@@ -131,6 +131,8 @@ int main(int argc, char **argv)
   hEventStat->GetXaxis()->SetBinLabel(3, "D0 -> pi+K");
   hEventStat->GetXaxis()->SetBinLabel(4, "Reco D0");
 
+  TH1F *hMcMult = new TH1F("hMcMult", "MC multiplicity (|#eta| < 3.5);N_{MC}", 50, 0, 50);
+
   TH1F *hMcVtxX = new TH1F("hMcVtxX", "x position of MC vertex;x (mm)", 100, -5.05, 4.95);
   TH1F *hMcVtxY = new TH1F("hMcVtxY", "y position of MC vertex;y (mm)", 500, -5.01, 4.99);
   TH1F *hMcVtxZ = new TH1F("hMcVtxZ", "z position of MC vertex;z (mm)", 400, -200, 200);
@@ -148,8 +150,8 @@ int main(int argc, char **argv)
 
   TH1F *hNRecoVtx = new TH1F("hNRecoVtx", "Number of reconstructed vertices;N", 10, 0, 10);
 
-  const char* part_name[2] = {"Pi", "K"};
-  const char* part_title[2] = {"#pi", "K"};
+  const char* part_name[3] = {"Pi", "K", "P"};
+  const char* part_title[3] = {"#pi", "K", "P"};
   TH3F *hRcSecPartLocaToRCVtx[2];
   TH3F *hRcSecPartLocbToRCVtx[2];
   TH3F *hRcPrimPartLocaToRCVtx[2];
@@ -160,6 +162,20 @@ int main(int argc, char **argv)
       hRcSecPartLocbToRCVtx[i] = new TH3F(Form("hRcSec%sLocbToRCVtx",part_name[i]), Form( "DCA_{z} distribution for D^{0} decayed %s;p_{T} (GeV/c);#eta;DCA_{z} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, -0.5, 0.5);
       hRcPrimPartLocaToRCVtx[i] = new TH3F(Form("hRcPrim%sLocaToRCVtx",part_name[i]), Form( "DCA_{xy} distribution for primary %s;p_{T} (GeV/c);#eta;DCA_{xy} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, 0, 1);
       hRcPrimPartLocbToRCVtx[i] = new TH3F(Form("hRcPrim%sLocbToRCVtx",part_name[i]), Form( "DCA_{z} distribution for primary %s;p_{T} (GeV/c);#eta;DCA_{z} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, -0.5, 0.5);
+    }
+
+  const char* axis_name[3] = {"x", "y", "z"};
+  const int nDimDca = 4;
+  const int nBinsDca[nDimDca] = {50, 20, 500, 50};
+  const double minBinDca[nDimDca] = {0, -5, -1+0.002, 0};
+  const double maxBinDca[nDimDca] = {5, 5, 1+0.002, 50};
+  THnSparseF *hPrimTrkDcaToRCVtx[3][3];
+  for(int i=0; i<3; i++)
+    {
+      for(int j=0; j<3; j++)
+	{
+	  hPrimTrkDcaToRCVtx[i][j] = new THnSparseF(Form("hPrim%sDca%sToRCVtx",part_name[i],axis_name[j]), Form("DCA_{%s} distribution for primary %s;p_{T} (GeV/c);#eta;DCA_{%s} (mm);N_{MC}",axis_name[j],part_title[i],axis_name[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+	}
     }
 
   TH3F *h3PairDca12[2];
@@ -205,9 +221,9 @@ int main(int argc, char **argv)
   TTreeReaderArray<double> mcPartVx = {treereader, "MCParticles.vertex.x"};
   TTreeReaderArray<double> mcPartVy = {treereader, "MCParticles.vertex.y"};
   TTreeReaderArray<double> mcPartVz = {treereader, "MCParticles.vertex.z"};
-  TTreeReaderArray<float> mcMomPx = {treereader, "MCParticles.momentum.x"};
-  TTreeReaderArray<float> mcMomPy = {treereader, "MCParticles.momentum.y"};
-  TTreeReaderArray<float> mcMomPz = {treereader, "MCParticles.momentum.z"};
+  TTreeReaderArray<double> mcMomPx = {treereader, "MCParticles.momentum.x"};
+  TTreeReaderArray<double> mcMomPy = {treereader, "MCParticles.momentum.y"};
+  TTreeReaderArray<double> mcMomPz = {treereader, "MCParticles.momentum.z"};
   TTreeReaderArray<double> mcEndPointX = {treereader, "MCParticles.endpoint.x"};
   TTreeReaderArray<double> mcEndPointY = {treereader, "MCParticles.endpoint.y"};
   TTreeReaderArray<double> mcEndPointZ = {treereader, "MCParticles.endpoint.z"};
@@ -260,7 +276,6 @@ int main(int argc, char **argv)
     {
       if(nevents%1000==0) printf("\n[i] New event %d\n",nevents);
       //if(nevents==20) break;
-      //printf("\n+++++ New Event %d +++++\n", nevents);
 
       // find MC primary vertex
       int nMCPart = mcPartMass.GetSize();
@@ -270,11 +285,9 @@ int main(int argc, char **argv)
 	  if(mcPartGenStatus[imc] == 4 && mcPartPdg[imc] == 11)
 	    {
 	      vertex_mc.SetXYZ(mcEndPointX[imc], mcEndPointY[imc], mcEndPointZ[imc]);
-	      //printf("[i] Primary vertex (x, y, z) = (%2.4f, %2.4f, %2.4f)\n", vertex_mc.x(), vertex_mc.y(), vertex_mc.z());
 	      break;
 	    }
 	}
-
       hEventStat->Fill(0.5);
       hMcVtxX->Fill(vertex_mc.x());
       hMcVtxY->Fill(vertex_mc.y());
@@ -298,14 +311,37 @@ int main(int argc, char **argv)
 	  assoc_map_to_mc[assocChRecID[j]] = assocChSimID[j];
 	}
 
+      for(int j=0; j<nAssoc; j++)
+	{
+	  if(assoc_map_to_rc.count(assocChSimID[j])>1) cout << "Found mc " << assocChSimID[j] << endl;
+	  if(assoc_map_to_mc.count(assocChRecID[j])>1) cout << "Found rc " << assocChRecID[j] << endl;
+	}
+
       // Loop over primary particles
+      int nMcPart = 0;
       for(int imc=0; imc<nMCPart; imc++)
 	{
-	  if(mcPartGenStatus[imc] == 1 && mcPartCharge[imc] != 0 && (fabs(mcPartPdg[imc]) == 211 || fabs(mcPartPdg[imc]) == 321))
+	  if(mcPartGenStatus[imc] == 1 && mcPartCharge[imc] != 0)
 	    {
 	      double dist = sqrt( pow(mcPartVx[imc]-vertex_mc.x(),2) + pow(mcPartVy[imc]-vertex_mc.y(),2) + pow(mcPartVz[imc]-vertex_mc.z(),2));      
 	      if(dist < 1e-4)
 		{
+		  // count charged particles within |eta| < 3.5
+		  TVector3 mc_mom(mcMomPx[imc], mcMomPy[imc], mcMomPz[imc]);
+		  double mcEta = mc_mom.PseudoRapidity();
+		  if(fabs(mcEta) < 3.5) nMcPart++;
+		}
+	    }
+	}
+      hMcMult->Fill(nMcPart);
+      
+      for(int imc=0; imc<nMCPart; imc++)
+	{
+	  if(mcPartGenStatus[imc] == 1 && mcPartCharge[imc] != 0)
+	    {
+	      double dist = sqrt( pow(mcPartVx[imc]-vertex_mc.x(),2) + pow(mcPartVy[imc]-vertex_mc.y(),2) + pow(mcPartVz[imc]-vertex_mc.z(),2));      
+	      if(dist < 1e-4)
+		{		  
 		  // check if the MC particle is reconstructed
 		  int rc_index = -1;
 		  if(assoc_map_to_rc.find(imc) != assoc_map_to_rc.end()) rc_index = assoc_map_to_rc[imc];
@@ -314,13 +350,26 @@ int main(int argc, char **argv)
 		    {
 		      TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
 		      
-		      int ip = 0;
+		      int ip = -1;
+		      if(fabs(mcPartPdg[imc]) == 211) ip = 0;
 		      if(fabs(mcPartPdg[imc]) == 321) ip = 1;
-		      TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
-		      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
-		      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
-		      //printf("Prim %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_index, pos.x(), pos.y(), pos.z(), mcPartVx[imc], mcPartVy[imc], mcPartVz[imc]);
-		      //printf("Prim %d: DCA = (%2.4f, %2.4f, %2.4f)\n", rc_index, dcaToVtx.x(), dcaToVtx.y(), dcaToVtx.z());
+		      if(fabs(mcPartPdg[imc]) == 2212) ip = 2;
+		      if(ip>=0)
+			{
+			  TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
+			  if(ip<2)
+			    {
+			      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Perp());
+			      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
+			    }
+
+			  double fill1[] = {mom.Pt(), mom.Eta(), dcaToVtx.x(), nMcPart};
+			  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.y(), nMcPart};
+			  double fill3[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart};
+			  hPrimTrkDcaToRCVtx[ip][0]->Fill(fill1);
+			  hPrimTrkDcaToRCVtx[ip][1]->Fill(fill2);
+			  hPrimTrkDcaToRCVtx[ip][2]->Fill(fill3);
+			}
 		    }
 		}
             }
@@ -393,12 +442,14 @@ int main(int argc, char **argv)
 		  TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
 		  hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
 		  hRcSecPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
+		  
+		  //printf("Sec %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_part_index, pos.x(), pos.y(), pos.z(), mcPartVx[mc_part_index], mcPartVy[mc_part_index], mcPartVz[mc_part_index]);
 		}
 	    }
 	}
 
-
       // Get reconstructed pions and kaons
+      hNRecoVtx->Fill(CTVx.size());
       const int pid_mode = 1; // 0 - truth; 1 - realistic
       vector<unsigned int> pi_index;
       vector<unsigned int> k_index;
@@ -408,7 +459,6 @@ int main(int argc, char **argv)
 	{	  
 	  if(pid_mode==0)
 	    {
-	      // Use truth PID information
 	      int iSimPartID = -1;
 	      if(assoc_map_to_mc.find(rc_index) != assoc_map_to_mc.end()) iSimPartID = assoc_map_to_mc[rc_index];
 	      if(iSimPartID>=0)
@@ -419,7 +469,6 @@ int main(int argc, char **argv)
 	    }
 	  else if(pid_mode==1)
 	    {
-	      // Use reconstructed PID
 	      if(fabs(rcPdg[rc_index]) == 211) pi_index.push_back(rc_index);
 	      if(fabs(rcPdg[rc_index]) == 321) k_index.push_back(rc_index);
 	    }
@@ -434,11 +483,37 @@ int main(int argc, char **argv)
 	      TVector3 dcaToVtx2 = getDcaToVtx(k_index[j], vertex_rc);
 	      if(rcCharge[pi_index[i]]*rcCharge[k_index[j]]<0)
 		{
+		  //printf("[i] Check pair (%d, %d)\n", pi_index[i], k_index[j]);
 		  // -- only look at unlike-sign pi+k pair
 		  bool is_D0_pik = false;
 		  int mc_index_pi = -1, mc_index_k = -1;
 		  if(assoc_map_to_mc.find(pi_index[i]) != assoc_map_to_mc.end()) mc_index_pi = assoc_map_to_mc[pi_index[i]];
 		  if(assoc_map_to_mc.find(k_index[j])  != assoc_map_to_mc.end()) mc_index_k  = assoc_map_to_mc[k_index[j]];
+
+		  // // int mc_index_pi_2 = -1, mc_index_k_2 = -1;
+		  // // for(int k=0; k<nAssoc; k++)
+		  // //   {
+		  // //     if(assocChRecID[k]==pi_index[i]) 
+		  // // 	{
+		  // // 	  mc_index_pi_2 = assocChSimID[k];
+		  // // 	}
+		  // //     if(assocChRecID[k]==k_index[j])
+		  // // 	{
+		  // // 	  mc_index_k_2 = assocChSimID[k];
+		  // // 	}
+		  // //   }
+		  // // printf("[c] cross check mc_index: %d =? %d, %d =? %d\n", mc_index_pi, mc_index_pi_2, mc_index_k, mc_index_k_2);
+
+		  // if( mc_index_pi>=0
+		  //     && mcPartParent_end[mc_index_pi]-mcPartParent_begin[mc_index_pi]==1
+		  //     && fabs(mcPartPdg[mcPartParent_index[mcPartParent_begin[mc_index_pi]]]) == 421
+		  //     && mc_index_k>=0
+		  //     && mcPartParent_end[mc_index_k]-mcPartParent_begin[mc_index_k]==1
+		  //     && fabs(mcPartPdg[mcPartParent_index[mcPartParent_begin[mc_index_k]]]) == 421
+		  //     && mcPartParent_index[mcPartParent_begin[mc_index_pi]] == mcPartParent_index[mcPartParent_begin[mc_index_k]] )
+		  //   {
+		  //     is_D0_pik = true;
+		  //   }
 
 		  for(unsigned int k=0; k<mc_index_D0_pi.size(); k++)
 		    {
@@ -448,15 +523,55 @@ int main(int argc, char **argv)
 			  break;
 			}
 		    }
+		  // for(int k=0; k<nAssoc; k++)
+		  //   {
+		  //     if(assocChRecID[k]==pi_index[i] || assocChRecID[k]==k_index[j])
+		  // 	{
+		  // 	  int iSimPartID = assocChSimID[k];
+		  // 	  // check if it comes from D0 decay
+		  // 	  bool is_parent_D0 = false;
+		  // 	  for(unsigned int iparent = mcPartParent_begin[iSimPartID]; iparent<mcPartParent_end[iSimPartID]; iparent++)
+		  // 	    {
+		  // 	      int parent_index = mcPartParent_index[iparent];
+		  // 	      printf("- Particle %d (mc_index = %d) has %d parent (%d) id = %d, pdg = %d\n", assocChRecID[k], iSimPartID, mcPartParent_end[iSimPartID]-mcPartParent_begin[iSimPartID], iparent, parent_index, mcPartPdg[parent_index]);
+		  // 	    }
+		  // 	}
+		  //   }
+		  //printf("[i] is signal pair? %d\n", is_D0_pik_2);
+
+		  // if(is_D0_pik_2)
+		  //   {
+		  //     if(pi_index_rc.count(pi_index[i]))
+		  //   }
 
 		  float dcaDaughters, cosTheta, decayLength, V0DcaToVtx;
 		  TLorentzVector parent = getPairParent(pi_index[i], k_index[j], vertex_rc, dcaDaughters, cosTheta, decayLength, V0DcaToVtx);
+
+		  // if(is_D0_pik!=is_D0_pik_2)
+		  //   {
+		  //     cout << "Found one: is_D0_pik = " << is_D0_pik << ", is_D0_pik_2 = " << is_D0_pik_2 << endl;
+		  //     cout << "mc_index_pi = " << mc_index_pi << ", mc_index_k = " << mc_index_k << endl;
+		  //     cout << "Parent mass = " << parent.M() << endl;
+
+		  //     for(int imc=0; imc<nMCPart; imc++)
+		  // 	{
+		  // 	  printf("[i] MC particle %d, pdg = %d, status = %d\n", imc, mcPartPdg[imc], mcPartGenStatus[imc]);
+		  // 	  for(unsigned int idaughter = mcPartDaughter_begin[imc]; idaughter<mcPartDaughter_end[imc]; idaughter++)
+		  // 	    {
+		  // 	      printf("+++ Daughter index = %d, pdg = %d\n", mcPartDaughter_index[idaughter], mcPartPdg[mcPartDaughter_index[idaughter]]);
+		  // 	    }
+		      
+		  // 	}
+		  //   }
+
+				  
 		  if(is_D0_pik)
 		    {
 		      h3PairDca12[0]->Fill(parent.Pt(), parent.Rapidity(), dcaDaughters);
 		      h3PairCosTheta[0]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
 		      h3PairDca[0]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
 		      h3PairDecayLength[0]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
+		      //printf("Signal: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
 		      h3InvMass[0][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
 		  else
@@ -465,10 +580,12 @@ int main(int argc, char **argv)
 		      h3PairCosTheta[1]->Fill(parent.Pt(), parent.Rapidity(), cosTheta);
 		      h3PairDca[1]->Fill(parent.Pt(), parent.Rapidity(), V0DcaToVtx);
 		      h3PairDecayLength[1]->Fill(parent.Pt(), parent.Rapidity(), decayLength);
+			  
+		      //printf("Bkg: dca12 = %2.4f, cosTheta = %2.4f, D0dca = %2.4f, decay = %2.4f\n", dcaDaughters, cosTheta, V0DcaToVtx, decayLength);
 		      h3InvMass[1][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
 
-		  if(dcaToVtx.Pt() >= 0.02 && dcaToVtx2.Pt() >= 0.02 &&
+		  if(dcaToVtx.Perp() >= 0.02 && dcaToVtx2.Perp() >= 0.02 &&
 		     dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
 		    {
 		      if(is_D0_pik)
@@ -478,6 +595,24 @@ int main(int argc, char **argv)
 		      else
 			{
 			  h3InvMass[1][1]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
+			  // if(parent.M()<1.88 && parent.M()>1.84)
+			  //   {
+			  //     cout << "Found one: is_D0_pik = " << is_D0_pik << ", is_D0_pik_2 = " << is_D0_pik_2 << endl;
+			  //     cout << "mc_index_pi = " << mc_index_pi << ", mc_index_k = " << mc_index_k << endl;
+			  //     cout << "Parent mass = " << parent.M() << endl;
+
+			  //     for(unsigned int iparent = mcPartParent_begin[mc_index_pi]; iparent<mcPartParent_end[mc_index_pi]; iparent++)
+			  // 	{
+			  // 	  int parent_index = mcPartParent_index[iparent];
+			  // 	  printf("- Particle %d (mc_index = %d) has %d parent (%d) id = %d, pdg = %d\n", pi_index[i], mc_index_pi, mcPartParent_end[mc_index_pi]-mcPartParent_begin[mc_index_pi], iparent, parent_index, mcPartPdg[parent_index]);
+			  // 	}
+			      
+			  //     for(unsigned int iparent = mcPartParent_begin[mc_index_k]; iparent<mcPartParent_end[mc_index_k]; iparent++)
+			  // 	{
+			  // 	  int parent_index = mcPartParent_index[iparent];
+			  // 	  printf("- Particle %d (mc_index = %d) has %d parent (%d) id = %d, pdg = %d\n", k_index[j], mc_index_k, mcPartParent_end[mc_index_k]-mcPartParent_begin[mc_index_k], iparent, parent_index, mcPartPdg[parent_index]);
+			  // 	}
+			  //   }
 			}
 		    }
 		}
@@ -490,6 +625,7 @@ int main(int argc, char **argv)
   TFile *outfile = new TFile(outname.Data(), "recreate");
 
   hEventStat->Write();
+  hMcMult->Write();
   hMcVtxX->Write();
   hMcVtxY->Write();
   hMcVtxZ->Write();
@@ -512,6 +648,14 @@ int main(int argc, char **argv)
       hRcSecPartLocbToRCVtx[ip]->Write();
       hRcPrimPartLocaToRCVtx[ip]->Write();
       hRcPrimPartLocbToRCVtx[ip]->Write();
+    }
+
+  for(int i=0; i<3; i++)
+    {
+      for(int j=0; j<3; j++)
+	{
+	  hPrimTrkDcaToRCVtx[i][j]->Write();
+	}
     }
 
   for(int i=0; i<2; i++)
