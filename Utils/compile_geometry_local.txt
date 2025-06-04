@@ -1,0 +1,10 @@
+eic-shell
+git clone git@github.com:eic/epic.git
+cd epic
+rm -rf build (if needed)
+cmake -B build -S . -DCMAKE_INSTALL_PREFIX=install
+cmake --build build -- install -j16
+
+source install/bin/thisepic.sh
+--compactFile $DETECTOR_PATH/epic_craterlake_NO_ZDC_10x100_Au197.xml
+

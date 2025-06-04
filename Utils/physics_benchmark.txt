@@ -1,0 +1,6 @@
+git clone https://eicweb.phy.anl.gov/EIC/benchmarks/physics_benchmarks.git && cd physics_benchmarks
+git clone https://eicweb.phy.anl.gov/EIC/benchmarks/common_bench.git setup
+source setup/bin/env.sh && ./setup/bin/install_common.sh
+source .local/bin/env.sh
+source /opt/detector/epic-main/setup.sh
+snakemake --cores 1 results/epic_craterlake/jets/10on100/minQ2=10/
