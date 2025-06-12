@@ -169,6 +169,8 @@ int main(int argc, char **argv)
   const double maxBinDca[nDimDca] = {10, 5, 1+0.002, 50};
   THnSparseF *hPrimTrkDcaToRCVtx[3][2];
   THnSparseF *hPrimTrkDcaToMCVtx[3][2];
+  THnSparseF *hSecTrkDcaToRCVtx[3][2];
+  THnSparseF *hSecTrkDcaToMCVtx[3][2];
   for(int i=0; i<3; i++)
     {
       for(int j=0; j<2; j++)
@@ -177,9 +179,9 @@ int main(int argc, char **argv)
 
 	  hPrimTrkDcaToMCVtx[i][j] = new THnSparseF(Form("hPrim%s%sToMCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
 
-	  hSecTrkDcaToRCVtx[i][j] = new THnSparseF(Form("hSec%s%sToRCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+	  hSecTrkDcaToRCVtx[i][j] = new THnSparseF(Form("hSec%s%sToRCVtx",part_name[i],axis_name[j]), Form("%s distribution for secondary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
 
-	  hSecTrkDcaToMCVtx[i][j] = new THnSparseF(Form("hSec%s%sToMCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+	  hSecTrkDcaToMCVtx[i][j] = new THnSparseF(Form("hSec%s%sToMCVtx",part_name[i],axis_name[j]), Form("%s distribution for secondary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
 	}
     }
 
@@ -327,15 +329,6 @@ int main(int argc, char **argv)
 		}
 	    }
 
-	  // if(nmatched>1) cout << "Found multiple match" << endl;
-	  // if(nmatched>1)
-	  //   {
-	  //     for(int j=0; j<nAssoc; j++)
-	  // 	{
-	  // 	  cout << assocChRecID[j] << "  " << assocChSimID[j] << "   " << assocWeight[j] << endl;
-	  // 	}
-	  //   }
-
 	  // build the map
 	  assoc_map_to_rc[matched_mc_index] = rc_index;
 	  assoc_map_to_mc[rc_index] = matched_mc_index;
@@ -386,11 +379,6 @@ int main(int argc, char **argv)
 		      if(ip>=0)
 			{
 			  TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
-			  if(ip<2)
-			    {
-			      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dca_xy);
-			      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
-			    }
 			  
 			  double fill1[] = {mom.Pt(), mom.Eta(), dca_xy, nMcPart*1.};
 			  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart*1.};
@@ -472,9 +460,20 @@ int main(int argc, char **argv)
 		  TVector3 dcaToVtx = getDcaToVtx(rc_part_index, vertex_rc);
 		  double dca_xy = signedDCAxy(rc_part_index, vertex_rc);
 		  
+		  TVector3 dcaToMcVtx = getDcaToVtx(rc_part_index, vertex_mc);
+		  double dca_xy_mc = signedDCAxy(rc_part_index, vertex_mc);
+		  
 		  TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
-		  hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dca_xy);
-		  hRcSecPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
+		  
+		  double fill1[] = {mom.Pt(), mom.Eta(), dca_xy, nMcPart*1.};
+		  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart*1.};
+		  hSecTrkDcaToRCVtx[ip][0]->Fill(fill1);
+		  hSecTrkDcaToRCVtx[ip][1]->Fill(fill2);
+
+		  double fill3[] = {mom.Pt(), mom.Eta(), dca_xy_mc, nMcPart*1.};
+		  double fill4[] = {mom.Pt(), mom.Eta(), dcaToMcVtx.z(), nMcPart*1.};
+		  hSecTrkDcaToMCVtx[ip][0]->Fill(fill3);
+		  hSecTrkDcaToMCVtx[ip][1]->Fill(fill4);
 		  
 		  //printf("Sec %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_part_index, pos.x(), pos.y(), pos.z(), mcPartVx[mc_part_index], mcPartVy[mc_part_index], mcPartVz[mc_part_index]);
 		}
@@ -597,20 +596,15 @@ int main(int argc, char **argv)
   
   hNRecoVtx->Write();
 
-  for(int ip=0; ip<2; ip++)
-    {
-      hRcSecPartLocaToRCVtx[ip]->Write();
-      hRcSecPartLocbToRCVtx[ip]->Write();
-      hRcPrimPartLocaToRCVtx[ip]->Write();
-      hRcPrimPartLocbToRCVtx[ip]->Write();
-    }
-
   for(int i=0; i<3; i++)
     {
       for(int j=0; j<2; j++)
 	{
 	  hPrimTrkDcaToRCVtx[i][j]->Write();
 	  hPrimTrkDcaToMCVtx[i][j]->Write();
+
+	  hSecTrkDcaToRCVtx[i][j]->Write();
+	  hSecTrkDcaToMCVtx[i][j]->Write();
 	}
     }
 
