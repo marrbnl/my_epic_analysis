@@ -62,6 +62,8 @@ const double bField = -1.7; // Tesla
 
 TVector3 getDcaToVtx(const int index, TVector3 vtx);
 
+double signedDCAxy(const int index, TVector3 vtx);
+
 TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
 			     float &dcaDaughters, float &cosTheta, float &decayLength, float &V0DcaToVtx);
 
@@ -77,22 +79,29 @@ TTreeReaderArray<float> *rcTrkPhi2;
 
 int main(int argc, char **argv)
 {
-  if(argc!=3 && argc!=1) return 0;
+  if(argc!=4 && argc!=1) return 0;
 
   TString listname;
   TString outname;
+  TString collname;
 
   if(argc==1)
     {
       listname  = "test.list";
       outname = "test.root";
+      collname = "ep";
     }
 
-  if(argc==3)
+  if(argc>=4)
     {
       listname = argv[1];
       outname = argv[2];
-    }  
+      collname = argv[3];
+    }
+
+  printf("[i] Input list: %s\n", listname.Data());
+  printf("[i] Output file: %s\n", outname.Data());
+  printf("[i] Collision: %s\n", collname.Data());
 
   TChain *chain = new TChain("events");
 
@@ -152,29 +161,25 @@ int main(int argc, char **argv)
 
   const char* part_name[3] = {"Pi", "K", "P"};
   const char* part_title[3] = {"#pi", "K", "P"};
-  TH3F *hRcSecPartLocaToRCVtx[2];
-  TH3F *hRcSecPartLocbToRCVtx[2];
-  TH3F *hRcPrimPartLocaToRCVtx[2];
-  TH3F *hRcPrimPartLocbToRCVtx[2];
-  for(int i=0; i<2; i++)
-    {
-      hRcSecPartLocaToRCVtx[i] = new TH3F(Form("hRcSec%sLocaToRCVtx",part_name[i]), Form( "DCA_{xy} distribution for D^{0} decayed %s;p_{T} (GeV/c);#eta;DCA_{xy} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, 0, 1);
-      hRcSecPartLocbToRCVtx[i] = new TH3F(Form("hRcSec%sLocbToRCVtx",part_name[i]), Form( "DCA_{z} distribution for D^{0} decayed %s;p_{T} (GeV/c);#eta;DCA_{z} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, -0.5, 0.5);
-      hRcPrimPartLocaToRCVtx[i] = new TH3F(Form("hRcPrim%sLocaToRCVtx",part_name[i]), Form( "DCA_{xy} distribution for primary %s;p_{T} (GeV/c);#eta;DCA_{xy} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, 0, 1);
-      hRcPrimPartLocbToRCVtx[i] = new TH3F(Form("hRcPrim%sLocbToRCVtx",part_name[i]), Form( "DCA_{z} distribution for primary %s;p_{T} (GeV/c);#eta;DCA_{z} (mm)", part_title[i]), 100, 0, 10, 20, -5, 5, 100, -0.5, 0.5);
-    }
-
-  const char* axis_name[3] = {"x", "y", "z"};
+  const char* axis_name[2] = {"DCAxy", "DCAz"};
+  const char* axis_title[2] = {"DCA_{xy}", "DCA_{z}"};
   const int nDimDca = 4;
-  const int nBinsDca[nDimDca] = {50, 20, 500, 50};
+  const int nBinsDca[nDimDca] = {100, 20, 500, 50};
   const double minBinDca[nDimDca] = {0, -5, -1+0.002, 0};
-  const double maxBinDca[nDimDca] = {5, 5, 1+0.002, 50};
-  THnSparseF *hPrimTrkDcaToRCVtx[3][3];
+  const double maxBinDca[nDimDca] = {10, 5, 1+0.002, 50};
+  THnSparseF *hPrimTrkDcaToRCVtx[3][2];
+  THnSparseF *hPrimTrkDcaToMCVtx[3][2];
   for(int i=0; i<3; i++)
     {
-      for(int j=0; j<3; j++)
+      for(int j=0; j<2; j++)
 	{
-	  hPrimTrkDcaToRCVtx[i][j] = new THnSparseF(Form("hPrim%sDca%sToRCVtx",part_name[i],axis_name[j]), Form("DCA_{%s} distribution for primary %s;p_{T} (GeV/c);#eta;DCA_{%s} (mm);N_{MC}",axis_name[j],part_title[i],axis_name[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+	  hPrimTrkDcaToRCVtx[i][j] = new THnSparseF(Form("hPrim%s%sToRCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+
+	  hPrimTrkDcaToMCVtx[i][j] = new THnSparseF(Form("hPrim%s%sToMCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+
+	  hSecTrkDcaToRCVtx[i][j] = new THnSparseF(Form("hSec%s%sToRCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
+
+	  hSecTrkDcaToMCVtx[i][j] = new THnSparseF(Form("hSec%s%sToMCVtx",part_name[i],axis_name[j]), Form("%s distribution for primary %s;p_{T} (GeV/c);#eta;%s (mm);N_{MC}",axis_title[j],part_title[i],axis_title[j]), nDimDca, nBinsDca, minBinDca, maxBinDca);
 	}
     }
 
@@ -221,9 +226,9 @@ int main(int argc, char **argv)
   TTreeReaderArray<double> mcPartVx = {treereader, "MCParticles.vertex.x"};
   TTreeReaderArray<double> mcPartVy = {treereader, "MCParticles.vertex.y"};
   TTreeReaderArray<double> mcPartVz = {treereader, "MCParticles.vertex.z"};
-  TTreeReaderArray<double> mcMomPx = {treereader, "MCParticles.momentum.x"};
-  TTreeReaderArray<double> mcMomPy = {treereader, "MCParticles.momentum.y"};
-  TTreeReaderArray<double> mcMomPz = {treereader, "MCParticles.momentum.z"};
+  TTreeReaderArray<float> mcMomPx = {treereader, "MCParticles.momentum.x"};
+  TTreeReaderArray<float> mcMomPy = {treereader, "MCParticles.momentum.y"};
+  TTreeReaderArray<float> mcMomPz = {treereader, "MCParticles.momentum.z"};
   TTreeReaderArray<double> mcEndPointX = {treereader, "MCParticles.endpoint.x"};
   TTreeReaderArray<double> mcEndPointY = {treereader, "MCParticles.endpoint.y"};
   TTreeReaderArray<double> mcEndPointZ = {treereader, "MCParticles.endpoint.z"};
@@ -231,7 +236,7 @@ int main(int argc, char **argv)
   TTreeReaderArray<unsigned int> assocChSimID = {treereader, "ReconstructedChargedParticleAssociations.simID"};
   TTreeReaderArray<unsigned int> assocChRecID = {treereader, "ReconstructedChargedParticleAssociations.recID"};
   TTreeReaderArray<float> assocWeight = {treereader, "ReconstructedChargedParticleAssociations.weight"};
- 
+  
   TTreeReaderArray<float> rcMomPx = {treereader, "ReconstructedChargedParticles.momentum.x"};
   TTreeReaderArray<float> rcMomPy = {treereader, "ReconstructedChargedParticles.momentum.y"};
   TTreeReaderArray<float> rcMomPz = {treereader, "ReconstructedChargedParticles.momentum.z"};
@@ -306,7 +311,6 @@ int main(int argc, char **argv)
       int nAssoc = assocChRecID.GetSize();
       map<int, int> assoc_map_to_rc;
       map<int, int> assoc_map_to_mc;
-      
       for(unsigned int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
 	{
 	  // loop over the association to find the matched MC particle
@@ -322,6 +326,15 @@ int main(int argc, char **argv)
 		  matched_mc_index = assocChSimID[j];
 		}
 	    }
+
+	  // if(nmatched>1) cout << "Found multiple match" << endl;
+	  // if(nmatched>1)
+	  //   {
+	  //     for(int j=0; j<nAssoc; j++)
+	  // 	{
+	  // 	  cout << assocChRecID[j] << "  " << assocChSimID[j] << "   " << assocWeight[j] << endl;
+	  // 	}
+	  //   }
 
 	  // build the map
 	  assoc_map_to_rc[matched_mc_index] = rc_index;
@@ -360,6 +373,11 @@ int main(int argc, char **argv)
 		  if(rc_index>=0)
 		    {
 		      TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
+		      double dca_xy = signedDCAxy(rc_index, vertex_rc);
+		      //cout << dca_xy << " =? " << dcaToVtx.Perp() << " =? " << rcTrkLoca[rc_index] << endl;
+
+		      TVector3 dcaToMcVtx = getDcaToVtx(rc_index, vertex_mc);
+		      double dca_xy_mc = signedDCAxy(rc_index, vertex_mc);
 		      
 		      int ip = -1;
 		      if(fabs(mcPartPdg[imc]) == 211) ip = 0;
@@ -370,16 +388,19 @@ int main(int argc, char **argv)
 			  TVector3 mom(rcMomPx[rc_index], rcMomPy[rc_index], rcMomPz[rc_index]);
 			  if(ip<2)
 			    {
-			      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Perp());
+			      hRcPrimPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dca_xy);
 			      hRcPrimPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
 			    }
-
-			  double fill1[] = {mom.Pt(), mom.Eta(), dcaToVtx.x(), nMcPart*1.};
-			  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.y(), nMcPart*1.};
-			  double fill3[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart*1.};
+			  
+			  double fill1[] = {mom.Pt(), mom.Eta(), dca_xy, nMcPart*1.};
+			  double fill2[] = {mom.Pt(), mom.Eta(), dcaToVtx.z(), nMcPart*1.};
 			  hPrimTrkDcaToRCVtx[ip][0]->Fill(fill1);
 			  hPrimTrkDcaToRCVtx[ip][1]->Fill(fill2);
-			  hPrimTrkDcaToRCVtx[ip][2]->Fill(fill3);
+
+			  double fill3[] = {mom.Pt(), mom.Eta(), dca_xy_mc, nMcPart*1.};
+			  double fill4[] = {mom.Pt(), mom.Eta(), dcaToMcVtx.z(), nMcPart*1.};
+			  hPrimTrkDcaToMCVtx[ip][0]->Fill(fill3);
+			  hPrimTrkDcaToMCVtx[ip][1]->Fill(fill4);
 			}
 		    }
 		}
@@ -449,9 +470,10 @@ int main(int argc, char **argv)
 	      if(rc_part_index>=0)
 		{
 		  TVector3 dcaToVtx = getDcaToVtx(rc_part_index, vertex_rc);
+		  double dca_xy = signedDCAxy(rc_part_index, vertex_rc);
 		  
 		  TVector3 mom(rcMomPx[rc_part_index], rcMomPy[rc_part_index], rcMomPz[rc_part_index]);
-		  hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.Pt());
+		  hRcSecPartLocaToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dca_xy);
 		  hRcSecPartLocbToRCVtx[ip]->Fill(mom.Pt(), mom.Eta(), dcaToVtx.z());
 		  
 		  //printf("Sec %d: (%2.4f, %2.4f, %2.4f), mcStartPoint = (%2.4f, %2.4f, %2.4f)\n", rc_part_index, pos.x(), pos.y(), pos.z(), mcPartVx[mc_part_index], mcPartVy[mc_part_index], mcPartVz[mc_part_index]);
@@ -467,7 +489,9 @@ int main(int argc, char **argv)
       pi_index.clear();
       k_index.clear();
       for(unsigned int rc_index=0; rc_index<rcMomPx.GetSize(); rc_index++)
-	{	  
+	{  
+	  // TVector3 dcaToVtx = getDcaToVtx(rc_index, vertex_rc);
+	  // if(dcaToVtx.Perp() < 0.02) continue;
 	  if(pid_mode==0)
 	    {
 	      int iSimPartID = -1;
@@ -533,8 +557,9 @@ int main(int argc, char **argv)
 		      h3InvMass[1][0]->Fill(parent.Pt(), parent.Rapidity(), parent.M());
 		    }
 
-		  if(dcaToVtx.Perp() >= 0.02 && dcaToVtx2.Perp() >= 0.02 &&
-		     dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
+		
+		  if( (collname=="ep" && dcaToVtx.Perp() >= 0.02 && dcaToVtx2.Perp() >= 0.02 && dcaDaughters < 0.07 && cosTheta > 0.95 && decayLength > 0.05 && V0DcaToVtx < 0.1)
+		    || (collname=="eAu" && dcaDaughters < 0.2 && decayLength < 0.2 && V0DcaToVtx < 0.1) ) // eAu cuts
 		    {
 		      if(is_D0_pik)
 			{
@@ -582,9 +607,10 @@ int main(int argc, char **argv)
 
   for(int i=0; i<3; i++)
     {
-      for(int j=0; j<3; j++)
+      for(int j=0; j<2; j++)
 	{
 	  hPrimTrkDcaToRCVtx[i][j]->Write();
+	  hPrimTrkDcaToMCVtx[i][j]->Write();
 	}
     }
 
@@ -629,6 +655,25 @@ TVector3 getDcaToVtx(const int index, TVector3 vtx)
   
   return dcaToVtx;
 }
+
+//======================================
+double signedDCAxy(const int index, TVector3 vtx)
+{
+  TVector3 pos(rcTrkLoca2->At(index) * sin(rcTrkPhi2->At(index)) * -1 * millimeter, rcTrkLoca2->At(index) * cos(rcTrkPhi2->At(index)) * millimeter, rcTrkLocb2->At(index) * millimeter);
+  TVector3 mom(rcMomPx2->At(index), rcMomPy2->At(index), rcMomPz2->At(index));
+   
+  StPhysicalHelix pHelix(mom, pos, bField * tesla, rcCharge2->At(index));
+
+  TVector3 vtx_tmp;
+  vtx_tmp.SetXYZ(vtx.x()*millimeter, vtx.y()*millimeter, vtx.z()*millimeter);
+
+  //cout << pHelix.geometricSignedDistance(vtx_tmp)/millimeter << "  " << pHelix.geometricSignedDistance(vtx_tmp.x(), vtx_tmp.y()) << endl;
+
+  //return pHelix.geometricSignedDistance(vtx_tmp)/millimeter;
+  return pHelix.geometricSignedDistance(vtx_tmp.x(), vtx_tmp.y())/millimeter;
+}
+
+
 
 //======================================
 TLorentzVector getPairParent(const int index1, const int index2, TVector3 vtx,
